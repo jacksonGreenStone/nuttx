@@ -269,14 +269,14 @@ static int can_open(FAR struct file *filep)
           dev->cd_crefs++;
 
           /* Per-file context (msgalign, optional ioctl FIFO).  Always
-           * allocated: write-only path needs msgalign / CANIOC_* even
-           * without O_RDONLY.  Receive path and poll() only use readers
-           * that are also queued on cd_readers (see below).
+           * allocated: write-only needs msgalign / CANIOC_* without O_RDOK.
+           * Receive path and poll() only use readers that are also queued
+           * on cd_readers (see below).
            */
 
           reader = init_can_reader(filep);
 
-          if ((filep->f_oflags & O_ACCMODE) != O_WRONLY)
+          if ((filep->f_oflags & O_RDOK) != 0)
             {
               list_add_head(&dev->cd_readers,
                             (FAR struct list_node *)reader);
@@ -736,16 +736,27 @@ static ssize_t can_write(FAR struct file *filep, FAR const char *buffer,
           /* The transmit sender is full. In order to resolve the Lower half
            * interrupt exception, attempt to release invalid unconfirm
            * messages and trigger can_xmit.
+           *
+           * IMPORTANT: lower-half txempty()/txready() may harvest RQCP and
+           * call can_txdone() as a side effect (alone-on-bus NART: TERR+RQCP).
+           * That frees S/W FIFO space even when H/W is not fully empty.
+           * Always re-check TX_FULL before returning -EAGAIN.
            */
 
           if (dev_txempty(dev))
             {
               can_send_done(sender);
+            }
+          else
+            {
+              /* Kick RQCP harvest via txready while some mailboxes busy. */
 
-              if (!TX_FULL(sender))
-                {
-                  break;
-                }
+              (void)dev_txready(dev);
+            }
+
+          if (!TX_FULL(sender))
+            {
+              break;
             }
 
           /* The transmit sender is full  -- non-blocking mode selected? */
@@ -1291,7 +1302,7 @@ int can_register(FAR const char *path, FAR struct can_dev_s *dev)
   /* Register the CAN device */
 
   caninfo("Registering %s\n", path);
-  return register_driver(path, &g_canops, 0600, dev);
+  return register_driver(path, &g_canops, 0666, dev);
 }
 
 /****************************************************************************

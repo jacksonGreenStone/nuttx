@@ -53,13 +53,27 @@ endif
 	$(Q) rm romfs.img
 endif
 
+# Optional out-of-tree object directory. Empty = compile next to sources
+# (in-tree NuttX boards). Out-of-tree BSP sets BOARD_OBJDIR before include.
+BOARD_OBJDIR ?=
+
 ifneq ($(ZDSVERSION),)
-AOBJS = $(ASRCS:.S=$(OBJEXT))
+AOBJS_LOCAL = $(ASRCS:.S=$(OBJEXT))
 else
-AOBJS = $(ASRCS:$(ASMEXT)=$(OBJEXT))
+AOBJS_LOCAL = $(ASRCS:$(ASMEXT)=$(OBJEXT))
 endif
-COBJS = $(CSRCS:.c=$(OBJEXT))
-CXXOBJS = $(CXXSRCS:.cxx=$(OBJEXT))
+COBJS_LOCAL = $(CSRCS:.c=$(OBJEXT))
+CXXOBJS_LOCAL = $(CXXSRCS:.cxx=$(OBJEXT))
+
+ifneq ($(BOARD_OBJDIR),)
+AOBJS = $(addprefix $(BOARD_OBJDIR)/,$(AOBJS_LOCAL))
+COBJS = $(addprefix $(BOARD_OBJDIR)/,$(COBJS_LOCAL))
+CXXOBJS = $(addprefix $(BOARD_OBJDIR)/,$(CXXOBJS_LOCAL))
+else
+AOBJS = $(AOBJS_LOCAL)
+COBJS = $(COBJS_LOCAL)
+CXXOBJS = $(CXXOBJS_LOCAL)
+endif
 
 SRCS = $(ASRCS) $(CSRCS)
 OBJS = $(AOBJS) $(COBJS)
@@ -88,6 +102,7 @@ $(ASRCS) $(HEAD_ASRC): %$(ASMEXT): %.S
 	$(Q) rm $@.tmp
 endif
 
+ifeq ($(BOARD_OBJDIR),)
 $(AOBJS): %$(OBJEXT): %$(ASMEXT)
 	$(call ASSEMBLE, $<, $@)
 
@@ -96,9 +111,23 @@ $(COBJS) $(LINKOBJS): %$(OBJEXT): %.c
 
 $(CXXOBJS) $(LINKOBJS): %$(OBJEXT): %.cxx
 	$(call COMPILEXX, $<, $@)
+else
+$(BOARD_OBJDIR)/%$(OBJEXT): %$(ASMEXT)
+	$(Q) mkdir -p $(dir $@)
+	$(call ASSEMBLE, $<, $@)
+
+$(BOARD_OBJDIR)/%$(OBJEXT): %.c
+	$(Q) mkdir -p $(dir $@)
+	$(call COMPILE, $<, $@)
+
+$(BOARD_OBJDIR)/%$(OBJEXT): %.cxx
+	$(Q) mkdir -p $(dir $@)
+	$(call COMPILEXX, $<, $@)
+endif
 
 libboard$(LIBEXT): $(OBJS) $(CXXOBJS)
 	$(call ARCHIVE, $@, $(OBJS) $(CXXOBJS))
+
 
 .depend: Makefile $(SRCS) $(CXXSRCS) $(RCSRCS) $(TOPDIR)$(DELIM).config
 ifneq ($(ZDSVERSION),)

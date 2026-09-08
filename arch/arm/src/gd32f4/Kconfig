@@ -231,6 +231,14 @@ menuconfig GD32F4_PROGMEM_OTA_PARTITION
 
 if GD32F4_PROGMEM_OTA_PARTITION
 
+# EnergyOS 2 MiB map (see docs/eos_mcu_flash/eos_mcu_flash.png):
+#   loader 128K | primary 768K | secondary 768K | scratch 128K |
+#   factory 32K | security 64K | sysconfig 64K | userconfig 64K | ota-state 32K
+
+config GD32F4_OTA_BOOT_DEVPATH
+	string "Bootloader (loader) device path"
+	default "/dev/otaboot"
+
 config GD32F4_OTA_PRIMARY_SLOT_DEVPATH
 	string "Primary slot device path"
 	default "/dev/ota0"
@@ -243,25 +251,93 @@ config GD32F4_OTA_SCRATCH_DEVPATH
 	string "Scratch partition device path"
 	default "/dev/otascratch"
 
+config GD32F4_OTA_FACTORY_DEVPATH
+	string "Factory data device path"
+	default "/dev/factory"
+
+config GD32F4_OTA_SECURITY_DEVPATH
+	string "Security data device path"
+	default "/dev/security"
+
+config GD32F4_OTA_SYSCONFIG_DEVPATH
+	string "System config device path"
+	default "/dev/sysconfig"
+
+config GD32F4_OTA_USERCONFIG_DEVPATH
+	string "User config device path"
+	default "/dev/userconfig"
+
+config GD32F4_OTA_STATE_DEVPATH
+	string "OTA / boot state device path"
+	default "/dev/ota-state"
+
+config GD32F4_OTA_BOOT_OFFSET
+	hex "Bootloader (loader) offset"
+	default 0x0
+
 config GD32F4_OTA_PRIMARY_SLOT_OFFSET
 	hex "Primary slot offset"
 	default 0x20000
 
 config GD32F4_OTA_SECONDARY_SLOT_OFFSET
 	hex "Secondary slot offset"
-	default 0x100000
+	default 0xe0000
 
 config GD32F4_OTA_SCRATCH_OFFSET
 	hex "Scratch partition offset"
-	default 0x1e0000
+	default 0x1a0000
+
+config GD32F4_OTA_FACTORY_OFFSET
+	hex "Factory data offset"
+	default 0x1c0000
+
+config GD32F4_OTA_SECURITY_OFFSET
+	hex "Security data offset"
+	default 0x1c8000
+
+config GD32F4_OTA_SYSCONFIG_OFFSET
+	hex "System config offset"
+	default 0x1d8000
+
+config GD32F4_OTA_USERCONFIG_OFFSET
+	hex "User config offset"
+	default 0x1e8000
+
+config GD32F4_OTA_STATE_OFFSET
+	hex "OTA / boot state offset"
+	default 0x1f8000
+
+config GD32F4_OTA_BOOT_SIZE
+	hex "Bootloader (loader) size (in bytes)"
+	default 0x20000
 
 config GD32F4_OTA_SLOT_SIZE
 	hex "Application image slot size (in bytes)"
-	default 0xe0000
+	default 0xc0000
 
 config GD32F4_OTA_SCRATCH_SIZE
 	hex "Scratch partition size (in bytes)"
 	default 0x20000
+
+config GD32F4_OTA_FACTORY_SIZE
+	hex "Factory data size (in bytes)"
+	default 0x8000
+
+config GD32F4_OTA_SECURITY_SIZE
+	hex "Security data size (in bytes)"
+	default 0x10000
+
+config GD32F4_OTA_SYSCONFIG_SIZE
+	hex "System config size (in bytes)"
+	default 0x10000
+
+config GD32F4_OTA_USERCONFIG_SIZE
+	hex "User config size (in bytes)"
+	default 0x10000
+
+config GD32F4_OTA_STATE_SIZE
+	hex "OTA / boot state size (in bytes)"
+	default 0x8000
 
 endif # GD32F4_PROGMEM_OTA_PARTITION
 endif # GD32F4_HAVE_OTA_PARTITION
@@ -343,12 +419,14 @@ config GD32F4_BKPSRAM
 config GD32F4_CAN0
 	bool "CAN0"
 	select CAN
+	select ARCH_HAVE_CAN_ERRORS
 	select GD32F4_CAN
 	default n
 
 config GD32F4_CAN1
 	bool "CAN1"
 	select CAN
+	select ARCH_HAVE_CAN_ERRORS
 	select GD32F4_CAN
 	default n
 
@@ -396,6 +474,7 @@ config GD32F4_ENETMAC
 	depends on GD32F4_HAVE_ENETMAC
 	select NETDEVICES
 	select ARCH_HAVE_PHY
+	select ARCH_HAVE_NETDEV_STATISTICS
 
 config GD32F4_EXMC
 	bool "EXMC"
@@ -1893,7 +1972,7 @@ config USART5_RS485_DIR_POLARITY
 	int "Configure USART5 RS-485 DIR pin polarity"
 	default 1
 	range 0 1
-	depends on USART1_RS485
+	depends on USART5_RS485
 	---help---
 		Polarity of GPIO_USART5_RS485_DIR pin for RS-485 on USART5.
 		The state on DIR pin: 0 - receive , 1 - transmit.
@@ -2436,6 +2515,18 @@ config GD32F4_PHY_INIT
 		provide the function of phyinitialize();  Before first uses the PHY, the GD32F4 Ethernet
 		driver will call this function one time .
 
+config GD32F4_PHY_SWITCH
+	bool "Ethernet PHY is an unmanaged switch (e.g. KSZ8863)"
+	default n
+	depends on GD32F4_PHY_INIT
+	---help---
+		Select when the RMII MAC attaches to a switch MAC port (e.g. KSZ8863
+		Port3), not a copper PHY. Board logic hard-resets the switch; Port1/2
+		copper keep strap autoneg. Skip MIIM soft-reset and MCR force at
+		GD32F4_PHY_ADDR (those target copper Port1 and can disable AN). MAC
+		speed/duplex still follow GD32F4_ENET_MODE_* / SPEEDMODE_* when
+		autoneg is disabled.
+
 config GD32F4_MII
 	bool "Use the media-independent interface (MII) interface"
 	default n
@@ -2654,6 +2745,44 @@ config GD32F4_USB_ITRMP
 
 menu "CAN driver configuration"
 	depends on GD32F4_CAN
+
+config GD32F4_CAN0_BAUD
+	int "CAN0 BAUD"
+	depends on GD32F4_CAN0
+	default 500000
+	---help---
+		CAN0 BAUD rate.  Required if CONFIG_GD32F4_CAN0 is defined.
+		Default 500000 for Board1 Power CAN MVP.
+
+config GD32F4_CAN1_BAUD
+	int "CAN1 BAUD"
+	depends on GD32F4_CAN1
+	default 500000
+	---help---
+		CAN1 BAUD rate.  Required if CONFIG_GD32F4_CAN1 is defined.
+
+config GD32F4_CAN_TSEG1
+	int "TSEG1 quanta"
+	default 6
+	---help---
+		The number of CAN time quanta in segment 1. Default: 6
+		(bit time = TSEG1 + TSEG2 + 1 = 14 quanta with default TSEG2).
+
+config GD32F4_CAN_TSEG2
+	int "TSEG2 quanta"
+	default 7
+	---help---
+		The number of CAN time quanta in segment 2. Default: 7
+
+config GD32F4_CAN_REGDEBUG
+	bool "CAN Register level debug"
+	depends on DEBUG_CAN_INFO
+	default n
+	---help---
+		Output detailed register-level CAN device debug information.
+		Requires also CONFIG_DEBUG_CAN_INFO.
+
+comment "Loopback mode uses Device Drivers -> CAN Driver Support -> CONFIG_CAN_LOOPBACK"
 
 endmenu # "CAN driver configuration"
 
