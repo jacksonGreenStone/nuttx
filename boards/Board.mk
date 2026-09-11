@@ -151,6 +151,9 @@ clean::
 	$(call DELFILE, libboard$(LIBEXT))
 	$(call DELFILE, $(ETCSRC))
 	$(call DELDIR, $(ETCDIR))
+ifneq ($(BOARD_OBJDIR),)
+	$(Q) rm -f $(AOBJS) $(COBJS) $(CXXOBJS)
+endif
 	$(call CLEAN)
 
 distclean:: clean
