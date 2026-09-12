@@ -94,3 +94,11 @@ SAVEconfig
 .aider*
 imx9-norimage.img
 config.txt
+
+# EnergyOS out-of-tree build leftovers (nuttx_mcu external apps / OTA build)
+*.c.*.o
+*.script.tmp
+ld.script.tmp
+.eos_fw_info.bin
+board.env
+signing-keys.pem
