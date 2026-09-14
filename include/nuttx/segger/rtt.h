@@ -66,6 +66,21 @@ extern "C"
 {
 #endif
 
+#ifdef CONFIG_SEGGER_RTT
+/****************************************************************************
+ * Name: segger_rtt_write_overwrite
+ *
+ * Description:
+ *   Locked ring-buffer write that overwrites the oldest data when the
+ *   up-buffer is full.  Never blocks the caller.
+ *
+ ****************************************************************************/
+
+unsigned int segger_rtt_write_overwrite(unsigned int channel,
+                                        FAR const void *buffer,
+                                        unsigned int length);
+#endif
+
 #ifdef CONFIG_STREAM_RTT
 /****************************************************************************
 * Name: lib_rttoutstream_open

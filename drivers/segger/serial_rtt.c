@@ -316,12 +316,16 @@ static void serial_rtt_dmasend(FAR struct uart_dev_s *dev)
   FAR struct uart_dmaxfer_s *xfer = &dev->dmatx;
   size_t len;
 
-  SEGGER_RTT_BLOCK_IF_FIFO_FULL(rtt->channel);
-  len = SEGGER_RTT_WriteNoLock(rtt->channel, xfer->buffer, xfer->length);
-  if (len == xfer->length && xfer->nlength)
+  /* Ring write: overwrite the oldest bytes when the up-buffer is full so the
+   * console never blocks the caller and always keeps the newest output.
+   */
+
+  len = segger_rtt_write_overwrite(rtt->channel, xfer->buffer,
+                                   xfer->length);
+  if (xfer->nlength)
     {
-      len += SEGGER_RTT_WriteNoLock(rtt->channel, xfer->nbuffer,
-                                    xfer->nlength);
+      len += segger_rtt_write_overwrite(rtt->channel, xfer->nbuffer,
+                                        xfer->nlength);
     }
 
   xfer->nbytes = len;
@@ -383,9 +387,11 @@ static void serial_rtt_dmatxavail(FAR struct uart_dev_s *dev)
 static void serial_rtt_send(FAR struct uart_dev_s *dev, int ch)
 {
   FAR struct serial_rtt_s *rtt = dev->priv;
+  char c = (char)ch;
 
-  SEGGER_RTT_BLOCK_IF_FIFO_FULL(rtt->channel);
-  SEGGER_RTT_PutChar(rtt->channel, ch);
+  /* Ring write: never block the console on a full (unread) up-buffer. */
+
+  segger_rtt_write_overwrite(rtt->channel, &c, 1);
 }
 
 /****************************************************************************

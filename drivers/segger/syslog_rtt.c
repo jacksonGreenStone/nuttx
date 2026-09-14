@@ -34,14 +34,15 @@
 
 int syslog_rtt_putc(FAR syslog_channel_t *channel, int ch)
 {
-  /* Never block: OTA/RS485 paths call syslog while the bus thread must
-   * still ACK. With no RTT host, BLOCK_IF_FIFO_FULL hangs forever once
-   * the up-buffer is full (seen as DATA ACK silence after a few KB).
-   * Buffer mode is CONFIG_SEGGER_RTT_MODE_NO_BLOCK_TRIM — drop/trim.
+  /* Never block, never stop: the up-buffer is a ring that overwrites the
+   * OLDEST data when full, so the newest log is always readable and the
+   * calling (bus/OTA) thread cannot stall on a detached probe.
    */
 
+  char c = (char)ch;
+
   (void)channel;
-  SEGGER_RTT_PutChar(CONFIG_SYSLOG_RTT_CHANNEL, ch);
+  segger_rtt_write_overwrite(CONFIG_SYSLOG_RTT_CHANNEL, &c, 1);
   return ch;
 }
 
@@ -49,5 +50,6 @@ ssize_t syslog_rtt_write(FAR syslog_channel_t *channel,
                          FAR const char *buffer, size_t buflen)
 {
   (void)channel;
-  return SEGGER_RTT_Write(CONFIG_SYSLOG_RTT_CHANNEL, buffer, buflen);
+  return segger_rtt_write_overwrite(CONFIG_SYSLOG_RTT_CHANNEL, buffer,
+                                    buflen);
 }
