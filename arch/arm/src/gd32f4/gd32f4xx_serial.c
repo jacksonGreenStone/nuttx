@@ -889,7 +889,7 @@ static struct up_dev_s g_uart6priv =
   .txdma_channel = DMA_CHANNEL_UART6_TX,
 #endif
 #ifdef CONFIG_GD32F4_UART6_RXDMA
-  .rxdma_channel = DMA_CHANNEL_UART6_TX,
+  .rxdma_channel = DMA_CHANNEL_UART6_RX,
   .rxfifo        = g_uart6rxfifo,
 #endif
 
@@ -962,7 +962,7 @@ static struct up_dev_s g_uart7priv =
   .txdma_channel = DMA_CHANNEL_UART7_TX,
 #endif
 #ifdef CONFIG_GD32F4_UART7_RXDMA
-  .rxdma_channel = DMA_CHANNEL_UART7_TX,
+  .rxdma_channel = DMA_CHANNEL_UART7_RX,
   .rxfifo        = g_uart7rxfifo,
 #endif
 
